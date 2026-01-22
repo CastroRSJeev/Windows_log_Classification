@@ -1,0 +1,44 @@
+CRITICAL FEATURES (do first):
+  [ ] event_id (one-hot or ordinal)
+  [ ] process_name (label encode)
+  [ ] hostname (label encode)
+  [ ] hostname_role (one-hot)
+  [ ] event_type (success/failure)
+  [ ] timestamp → hour_of_day, day_of_week
+  [ ] user_context (one-hot)
+  [ ] is_admin_process (binary)
+  
+HIGH-VALUE FEATURES (do next):
+  [ ] process_path_risk_score (custom function)
+  [ ] command_line_risk_keywords (count)
+  [ ] registry_persistence_path (custom function)
+  [ ] dest_ip_type (one-hot)
+  [ ] source_ip_type (one-hot)
+  [ ] dest_port (bucket or raw)
+  [ ] parent_process_name (label encode)
+  [ ] is_external_communication (binary)
+  [ ] process_path_legitimacy (lookup table)
+  [ ] file_extension_risk (custom mapping)
+  
+TEMPORAL/STATISTICAL FEATURES (do after):
+  [ ] event_count_process_1h
+  [ ] event_count_process_24h
+  [ ] unique_destinations_1h
+  [ ] unique_processes_1h
+  [ ] process_first_occurrence
+  [ ] destination_first_occurrence
+  [ ] time_since_logon (for auth events)
+  [ ] session_duration
+  [ ] failed_auth_before_success
+  
+BEHAVIORAL/PATTERN FEATURES (advanced):
+  [ ] is_scanning_pattern
+  [ ] is_beaconing_pattern
+  [ ] is_lateral_movement_pattern
+  [ ] is_privilege_escalation_sequence
+  [ ] is_credential_access_pattern
+  [ ] is_persistence_pattern
+  [ ] process_chain_depth
+  [ ] lsass_access_indicator
+  [ ] dll_injection_indicator
+  [ ] process_injection_volume
