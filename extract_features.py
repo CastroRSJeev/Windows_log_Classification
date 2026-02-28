@@ -44,10 +44,8 @@ def extract_features(data):
     # Ensure datetime sorting for stateful features
     data['@timestamp'] = pd.to_datetime(data['@timestamp'], errors='coerce')
     data = data.sort_values('@timestamp')
-    
-    # --- BASE FEATURES (Original Request) ---
-    df['event_id'] = data['EventID']
-    # Prioritize ProcessName, then NewProcessName, then Image
+ 
+    df['event_id'] = data['EventID']   
     df['process_name'] = data['ProcessName'].fillna(data['NewProcessName']).fillna(data['Image']).fillna(data['Application'])
     df['hostname'] = data['Hostname']
     
@@ -69,11 +67,10 @@ def extract_features(data):
         mask_admin |= data['ElevatedToken'].astype(str).str.contains('Yes|True', case=False, na=False)
     df['is_admin_process'] = mask_admin.astype(int)
 
-    # --- TIER 1: CRITICAL ---
+
     df['dest_port'] = data['DestPort'].fillna(0).astype(int)
     
-    # IP Types (Optimized apply)
-    # Cache results to speed up if many duplicates
+    
     unique_src = data['SourceAddress'].dropna().unique()
     src_map = {ip: classify_ip(ip) for ip in unique_src}
     df['source_ip_type'] = data['SourceAddress'].map(src_map).fillna('Unknown')
@@ -85,11 +82,11 @@ def extract_features(data):
     df['user_id'] = data.get('SubjectUserSid', 'Unknown')
     df['process_path_risk_score'] = data['Image'].apply(get_process_risk_score)
 
-    # --- TIER 2: HIGH VALUE (Stateful/aggregates) ---
+   
     df['command_line_risk_keywords'] = data.get('CommandLine', '').apply(count_risk_keywords)
     df['parent_process_name'] = data.get('ParentProcessName', '')
     
-    # File Extension Risk
+   
     def get_ext_risk(filename):
         if pd.isna(filename): return 0
         ext = str(filename).split('.')[-1].lower() if '.' in str(filename) else ''
@@ -108,31 +105,11 @@ def extract_features(data):
     
     df['is_sensitive_privilege'] = data.get('PrivilegeList', '').apply(is_sensitive_priv)
 
-    # --- AGGREGATIONS (Tier 2) ---
-    # Note: These operations can be memory intensive.
+
     try:
         data_sorted = data.sort_values('@timestamp').set_index('@timestamp')
-        
-        # 1. event_count_1h (per ProcessName)
-        # Using transform to maintain original shape and index alignment
-        # We assume df is aligned with data_sorted if we didn't drop rows, but we extracted from 'data'.
-        # IMPORTANT: 'df' currently aligns with 'data' (unsorted). 
-        # We must populate 'df' based on the sorted order or merge back.
-        # Strategy: Create Series with index, then map back to df's original index (if df has one).
-        # Better: perform these before creating 'df' or sort 'df' to match.
-        
-        # We will operate on 'data_sorted' and map back using the index (which is timestamp? No, pandas index).
-        # Let's rely on the fact that we sorted 'data' at the start of the function.
-        # If we sorted 'data' at start, 'df' constructed from it is also sorted.
-        
-        # Group by ProcessName, rolling count 1h
         count_series = data_sorted.groupby('ProcessName')['EventID'].transform(lambda x: x.rolling('1h').count())
         df['event_count_1h'] = count_series.values
-        
-        # 2. unique_destinations_1h (per ProcessName)
-        # rolling().apply() with nunique Is very slow.
-        # improved: Approximation or skip if too slow.
-        # We will skip rolling unique count for now to avoid timeout/memory kill.
         df['unique_destinations_1h'] = 0 
         
     except Exception as e:
@@ -140,20 +117,17 @@ def extract_features(data):
         df['event_count_1h'] = 0
         df['unique_destinations_1h'] = 0
 
-    # --- TIER 3 & 4: CONTEXT ---
     df['source_port'] = data.get('SourcePort')
     df['protocol'] = data.get('Protocol')
     df['is_outbound'] = df['dest_ip_type'].apply(lambda x: 1 if x == 'External' else 0)
     df['source_address'] = data.get('SourceAddress')
     df['dest_address'] = data.get('DestAddress')
-    df['process_path'] = data.get('Image') # Full path typically in Image
+    df['process_path'] = data.get('Image') 
     df['parent_process_path'] = data.get('ParentImage')
     df['command_line'] = data.get('CommandLine')
-    df['file_path'] = data.get('TargetFilename') # Context dependent
+    df['file_path'] = data.get('TargetFilename') 
     df['file_name'] = df['file_path'].apply(lambda x: str(x).split('\\')[-1] if pd.notna(x) else '')
     df['file_extension'] = df['file_name'].apply(lambda x: str(x).split('.')[-1] if '.' in str(x) else '')
     
     return df
 
-if __name__ == "__main__":
-    print("Feature extraction script ready. Import 'extract_features' to use.")
